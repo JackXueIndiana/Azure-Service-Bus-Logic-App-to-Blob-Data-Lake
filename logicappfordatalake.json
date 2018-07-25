@@ -1,0 +1,111 @@
+{
+    "$connections": {
+        "value": {
+            "azuredatalake": {
+                "connectionId": ",
+                "connectionName": "azuredatalake",
+                "id": ""
+            },
+            "servicebus": {
+                "connectionId": "",
+                "connectionName": "servicebus",
+                "id": ""
+            }
+        }
+    },
+    "definition": {
+        "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+        "actions": {
+            "For_each": {
+                "actions": {
+                    "Append_File_(sequential)": {
+                        "inputs": {
+                            "body": "@base64ToBinary(triggerBody()?['ContentData'])",
+                            "host": {
+                                "connection": {
+                                    "name": "@parameters('$connections')['azuredatalake']['connectionId']"
+                                }
+                            },
+                            "method": "post",
+                            "path": "/webhdfs/v1/@{encodeURIComponent('messages/test.txt')}",
+                            "queries": {
+                                "account": "jacktestsbdls",
+                                "append": "true",
+                                "op": "APPEND"
+                            }
+                        },
+                        "runAfter": {},
+                        "type": "ApiConnection"
+                    },
+                    "Delay": {
+                        "inputs": {
+                            "interval": {
+                                "count": 3,
+                                "unit": "Second"
+                            }
+                        },
+                        "runAfter": {
+                            "Append_File_(sequential)": [
+                                "Succeeded"
+                            ]
+                        },
+                        "type": "Wait"
+                    }
+                },
+                "foreach": "@body('Get_messages_from_a_queue_(peek-lock)')",
+                "runAfter": {
+                    "Get_messages_from_a_queue_(peek-lock)": [
+                        "Succeeded"
+                    ]
+                },
+                "type": "Foreach"
+            },
+            "Get_messages_from_a_queue_(peek-lock)": {
+                "inputs": {
+                    "host": {
+                        "connection": {
+                            "name": "@parameters('$connections')['servicebus']['connectionId']"
+                        }
+                    },
+                    "method": "get",
+                    "path": "/@{encodeURIComponent(encodeURIComponent('jacktestqueue'))}/messages/batch/peek",
+                    "queries": {
+                        "maxMessageCount": 20,
+                        "queueType": "Main"
+                    }
+                },
+                "runAfter": {},
+                "type": "ApiConnection"
+            }
+        },
+        "contentVersion": "1.0.0.0",
+        "outputs": {},
+        "parameters": {
+            "$connections": {
+                "defaultValue": {},
+                "type": "Object"
+            }
+        },
+        "triggers": {
+            "When_a_message_is_received_in_a_queue_(auto-complete)": {
+                "inputs": {
+                    "host": {
+                        "connection": {
+                            "name": "@parameters('$connections')['servicebus']['connectionId']"
+                        }
+                    },
+                    "method": "get",
+                    "path": "/@{encodeURIComponent(encodeURIComponent('jacktestqueue'))}/messages/head",
+                    "queries": {
+                        "queueType": "Main"
+                    }
+                },
+                "recurrence": {
+                    "frequency": "Minute",
+                    "interval": 3
+                },
+                "type": "ApiConnection"
+            }
+        }
+    }
+}
